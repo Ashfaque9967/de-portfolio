@@ -1,4 +1,5 @@
 import pandas as pd
+from ftfy import fix_text
 
 df = pd.read_csv("data/raw/zomato.csv")
 
@@ -8,6 +9,10 @@ df = df.rename(columns={
     "listed_in(type)": "listing_type",
     "listed_in(city)": "listing_city",
 })
+
+# 1b. Mojibake fix (dedupe se pehle, taaki same naam ke variants match ho sakein)
+for col in ["name", "address"]:
+    df[col] = df[col].apply(lambda x: fix_text(x) if isinstance(x, str) else x)
 
 # 2. rate: "4.1/5" ya "4.1 /5" -> 4.1 (NEW aur "-" NaN ban jayenge)
 df["rate"] = pd.to_numeric(
@@ -61,3 +66,8 @@ print("reviews_list nulls:", df["reviews_list"].isnull().sum())
 back = pd.read_csv("data/processed/restaurants_clean.csv")
 print("READ BACK shape:", back.shape)
 print(back.dtypes[["rate", "cost_for_two", "online_order", "votes"]])
+
+# Encoding check
+print("\nname mein bacha hua kharab:", df["name"].str.contains("Ã|Â", regex=True, na=False).sum())
+print("address mein bacha hua kharab:", df["address"].str.contains("Ã|Â", regex=True, na=False).sum())
+print(df.loc[df["name"].str.contains("Spa Cuisine", na=False), "name"].tolist())
