@@ -1,7 +1,19 @@
+import logging
 import os
+import sys
 
 import pandas as pd
 from ftfy import fix_text
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+log = logging.getLogger(__name__)
+
+REQUIRED_COLUMNS = [
+    "name", "address", "rate", "votes", "online_order", "book_table",
+    "phone", "location", "rest_type", "dish_liked", "cuisines",
+    "approx_cost(for two people)", "reviews_list", "menu_item",
+    "listed_in(type)", "listed_in(city)",
+]
 
 RAW_PATH = "data/raw/zomato.csv"
 OUT_DIR = "data/processed"
@@ -10,7 +22,6 @@ TEXT_COLUMNS = [
     "name", "address", "location", "rest_type",
     "cuisines", "dish_liked", "listing_city",
 ]
-
 
 def rename_columns(df):
     """Column names SQL-friendly banao."""
@@ -86,14 +97,23 @@ def empty_list_to_null(series):
 
 def clean(raw_df):
     """Poori cleaning pipeline. Returns (restaurants, listings)."""
+    missing = [c for c in REQUIRED_COLUMNS if c not in raw_df.columns]
+    if missing:
+        raise ValueError(f"Raw data mein ye columns nahi mile: {missing}")
+
     df = rename_columns(raw_df)
+    log.info("Raw rows: %d", len(df))
     df = fix_mojibake(df, ["name", "address"])
 
     df["rate"] = clean_rate(df["rate"])
     df["cost_for_two"] = clean_cost(df["cost_for_two"])
+    log.info("rate nulls: %d | cost nulls: %d",
+             df["rate"].isnull().sum(), df["cost_for_two"].isnull().sum())
 
     listings = extract_listings(df)
+    before = len(df)
     df = dedupe_restaurants(df)
+    log.info("Dedupe: %d -> %d rows (%d hataye)", before, len(df), before - len(df))
 
     df["online_order"] = yes_no_to_bool(df["online_order"])
     df["book_table"] = yes_no_to_bool(df["book_table"])
@@ -102,11 +122,15 @@ def clean(raw_df):
 
     df["menu_item"] = empty_list_to_null(df["menu_item"])
     df["reviews_list"] = empty_list_to_null(df["reviews_list"])
+    log.info("Clean done: %d restaurants, %d listings", len(df), len(listings))
     return df, listings
 
-
 def main():
-    raw = pd.read_csv(RAW_PATH)
+    try:
+        raw = pd.read_csv(RAW_PATH)
+    except FileNotFoundError:
+        log.error("Raw file nahi mili: %s. Kaggle se download karke wahan rakho.", RAW_PATH)
+        sys.exit(1)
     df, listings = clean(raw)
 
     os.makedirs(OUT_DIR, exist_ok=True)
