@@ -18,6 +18,9 @@ listings = pd.read_csv("data/processed/restaurant_listings.csv")
 restaurants.to_sql("restaurants", engine, if_exists="replace", index=False, chunksize=1000)
 listings.to_sql("restaurant_listings", engine, if_exists="replace", index=False, chunksize=1000)
 
+reviews = pd.read_csv("data/processed/reviews.csv")
+reviews.to_sql("reviews", engine, if_exists="replace", index=False, chunksize=5000)
+
 with engine.connect() as conn:
-    for t in ["restaurants", "restaurant_listings"]:
+    for t in ["restaurants", "restaurant_listings", "reviews"]:
         print(t, "rows:", conn.execute(text(f"SELECT COUNT(*) FROM {t}")).scalar())
